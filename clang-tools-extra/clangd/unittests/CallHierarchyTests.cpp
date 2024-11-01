@@ -491,6 +491,36 @@ TEST(CallHierarchy, HierarchyOnVar) {
                                 fromRanges(Source.range("Callee")))));
 }
 
+TEST(CallHierarchy, HierarchyOnEnumConstant) {
+  // Tests that the call hierarchy works with multiple enums.
+  Annotations Source(R"cpp(
+    enum class Coin { he$Heads^ads, ta$Tails^ils };
+    void caller() {
+      Coin::$Caller1[[heads]];
+      Coin::$Caller2[[tails]];
+    }
+  )cpp");
+  TestTU TU = TestTU::withCode(Source.code());
+  auto AST = TU.build();
+  auto Index = TU.index();
+
+  std::vector<CallHierarchyItem> ItemsHeads =
+      prepareCallHierarchy(AST, Source.point("Heads"), testPath(TU.Filename));
+  ASSERT_THAT(ItemsHeads, ElementsAre(withName("heads")));
+  auto IncomingLevel1Heads = incomingCalls(ItemsHeads[0], Index.get());
+  ASSERT_THAT(IncomingLevel1Heads,
+              ElementsAre(AllOf(from(withName("caller")),
+                                fromRanges(Source.range("Caller1")))));
+
+  std::vector<CallHierarchyItem> ItemsTails =
+      prepareCallHierarchy(AST, Source.point("Tails"), testPath(TU.Filename));
+  ASSERT_THAT(ItemsTails, ElementsAre(withName("tails")));
+  auto IncomingLevel1Tails = incomingCalls(ItemsTails[0], Index.get());
+  ASSERT_THAT(IncomingLevel1Tails,
+              ElementsAre(AllOf(from(withName("caller")),
+                                fromRanges(Source.range("Caller2")))));
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang
